@@ -106,11 +106,17 @@ private:
     case AppState::MAIN_MENU:
       handleMainMenu(evt);
       break;
+    case AppState::COLOR_PICKER_MENU:
+      handleColorPickerMenu(evt);
+      break;
     case AppState::PICK_COLOR:
       handlePickColor(evt);
       break;
     case AppState::PICK_RESULT:
       handlePickResult(evt);
+      break;
+    case AppState::CALLIPER_MENU:
+      handleCalliperMenu(evt);
       break;
     case AppState::MEASURE:
       handleMeasure(evt);
@@ -130,8 +136,8 @@ private:
     case AppState::MEASUREMENT_DETAIL:
       handleMeasurementDetail(evt);
       break;
-    case AppState::CALIBRATION_MENU:
-      handleCalibrationMenu(evt);
+    case AppState::SETTINGS_MENU:
+      handleSettingsMenu(evt);
       break;
     case AppState::CALIB_DARK:
     case AppState::CALIB_GRAY:
@@ -154,16 +160,48 @@ private:
   }
 
   // ── Main Menu Handler ───────────────────────────────────
+  // Items: 0 = Color Picker, 1 = Calliper, 2 = Settings
   void handleMainMenu(const Event &evt) {
     switch (evt.type) {
     case EventType::ENCODER_CW:
-      menuIndex_ = (menuIndex_ + 1) % 5;
+      menuIndex_ = (menuIndex_ + 1) % 3;
       break;
     case EventType::ENCODER_CCW:
-      menuIndex_ = (menuIndex_ + 4) % 5; // wrap around
+      menuIndex_ = (menuIndex_ + 2) % 3;
       break;
     case EventType::BUTTON_PRESS:
       switch (menuIndex_) {
+      case 0:
+        colorPickerMenuIndex_ = 0;
+        stateMachine_.transitionTo(AppState::COLOR_PICKER_MENU);
+        break;
+      case 1:
+        calliperMenuIndex_ = 0;
+        stateMachine_.transitionTo(AppState::CALLIPER_MENU);
+        break;
+      case 2:
+        settingsMenuIndex_ = 0;
+        stateMachine_.transitionTo(AppState::SETTINGS_MENU);
+        break;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  // ── Color Picker Sub-Menu Handler ─────────────────────
+  // Items: 0 = New Color, 1 = Saved Color
+  void handleColorPickerMenu(const Event &evt) {
+    switch (evt.type) {
+    case EventType::ENCODER_CW:
+      colorPickerMenuIndex_ = (colorPickerMenuIndex_ + 1) % 2;
+      break;
+    case EventType::ENCODER_CCW:
+      colorPickerMenuIndex_ = 1 - colorPickerMenuIndex_;
+      break;
+    case EventType::BUTTON_PRESS:
+      switch (colorPickerMenuIndex_) {
       case 0:
         stateMachine_.transitionTo(AppState::PICK_COLOR);
         break;
@@ -173,22 +211,43 @@ private:
         colorListScroll_ = 0;
         stateMachine_.transitionTo(AppState::SAVED_COLORS_LIST);
         break;
-      case 2:
+      }
+      break;
+    case EventType::BUTTON_LONG_PRESS:
+      stateMachine_.goBack();
+      break;
+    default:
+      break;
+    }
+  }
+
+  // ── Calliper Sub-Menu Handler ─────────────────────────
+  // Items: 0 = New Measure, 1 = Saved Measure
+  void handleCalliperMenu(const Event &evt) {
+    switch (evt.type) {
+    case EventType::ENCODER_CW:
+      calliperMenuIndex_ = (calliperMenuIndex_ + 1) % 2;
+      break;
+    case EventType::ENCODER_CCW:
+      calliperMenuIndex_ = 1 - calliperMenuIndex_;
+      break;
+    case EventType::BUTTON_PRESS:
+      switch (calliperMenuIndex_) {
+      case 0:
         measureOffset_ = Config::Measure::INITIAL_OFFSET_PX;
         lastMeasureEncoderTime_ = 0;
         stateMachine_.transitionTo(AppState::MEASURE);
         break;
-      case 3:
+      case 1:
         StorageManager::instance().loadMeasurements(savedMeasurements_);
         measureListIndex_ = 0;
         measureListScroll_ = 0;
         stateMachine_.transitionTo(AppState::MEASUREMENTS_LIST);
         break;
-      case 4:
-        calibMenuIndex_ = 0;
-        stateMachine_.transitionTo(AppState::CALIBRATION_MENU);
-        break;
       }
+      break;
+    case EventType::BUTTON_LONG_PRESS:
+      stateMachine_.goBack();
       break;
     default:
       break;
@@ -353,8 +412,8 @@ private:
       if (!savedMeasurements_.empty()) {
         measureListIndex_ =
             (measureListIndex_ + 1) % savedMeasurements_.size();
-        if (measureListIndex_ >= measureListScroll_ + 5)
-          measureListScroll_ = measureListIndex_ - 4;
+        if (measureListIndex_ >= measureListScroll_ + 6)
+          measureListScroll_ = measureListIndex_ - 5;
         if (measureListIndex_ < measureListScroll_)
           measureListScroll_ = measureListIndex_;
       }
@@ -366,8 +425,8 @@ private:
                                 : measureListIndex_ - 1;
         if (measureListIndex_ < measureListScroll_)
           measureListScroll_ = measureListIndex_;
-        if (measureListIndex_ >= measureListScroll_ + 5)
-          measureListScroll_ = measureListIndex_ - 4;
+        if (measureListIndex_ >= measureListScroll_ + 6)
+          measureListScroll_ = measureListIndex_ - 5;
       }
       break;
     case EventType::BUTTON_PRESS:
@@ -421,8 +480,8 @@ private:
       if (!savedColors_.empty()) {
         colorListIndex_ = (colorListIndex_ + 1) % savedColors_.size();
         // Adjust scroll
-        if (colorListIndex_ >= colorListScroll_ + 5) {
-          colorListScroll_ = colorListIndex_ - 4;
+        if (colorListIndex_ >= colorListScroll_ + 6) {
+          colorListScroll_ = colorListIndex_ - 5;
         }
         if (colorListIndex_ < colorListScroll_) {
           colorListScroll_ = colorListIndex_;
@@ -436,8 +495,8 @@ private:
         if (colorListIndex_ < colorListScroll_) {
           colorListScroll_ = colorListIndex_;
         }
-        if (colorListIndex_ >= colorListScroll_ + 5) {
-          colorListScroll_ = colorListIndex_ - 4;
+        if (colorListIndex_ >= colorListScroll_ + 6) {
+          colorListScroll_ = colorListIndex_ - 5;
         }
       }
       break;
@@ -484,19 +543,19 @@ private:
     }
   }
 
-  // ── Calibration Menu Handler ────────────────────────────
-  // Items: 0 = Calibrate, 1 = Sensor Gain, 2 = Reset Calibration
-  void handleCalibrationMenu(const Event &evt) {
+  // ── Settings Menu Handler ──────────────────────────────
+  // Items: 0 = Color Calibration CG-3, 1 = Sensor Gain, 2 = Screen orientation
+  void handleSettingsMenu(const Event &evt) {
     auto &sensor = SensorManager::instance();
     switch (evt.type) {
     case EventType::ENCODER_CW:
-      calibMenuIndex_ = (calibMenuIndex_ + 1) % 3;
+      settingsMenuIndex_ = (settingsMenuIndex_ + 1) % 3;
       break;
     case EventType::ENCODER_CCW:
-      calibMenuIndex_ = (calibMenuIndex_ + 2) % 3;
+      settingsMenuIndex_ = (settingsMenuIndex_ + 2) % 3;
       break;
     case EventType::BUTTON_PRESS:
-      switch (calibMenuIndex_) {
+      switch (settingsMenuIndex_) {
       case 0:
         // Start unified calibration wizard (Dark → Gray → White)
         stateMachine_.transitionTo(AppState::CALIB_DARK);
@@ -507,11 +566,11 @@ private:
         needsRefresh_ = true;
         break;
       case 2:
-        // Reset calibration
+        // Cycle screen orientation (0→1→2→3→0)
         {
-          CalibrationData empty;
-          memset(&empty, 0, sizeof(empty));
-          sensor.setCalibration(empty);
+          auto &disp = DisplayManager::instance();
+          screenRotation_ = (screenRotation_ + 1) % 4;
+          disp.setRotation(screenRotation_);
         }
         needsRefresh_ = true;
         break;
@@ -581,7 +640,7 @@ private:
       break;
     case EventType::BUTTON_LONG_PRESS:
       // Cancel entire wizard
-      stateMachine_.transitionTo(AppState::CALIBRATION_MENU);
+      stateMachine_.transitionTo(AppState::SETTINGS_MENU);
       break;
     default:
       break;
@@ -592,7 +651,7 @@ private:
   void handleCalibComplete(const Event &evt) {
     if (evt.type == EventType::BUTTON_PRESS ||
         evt.type == EventType::BUTTON_LONG_PRESS) {
-      stateMachine_.transitionTo(AppState::CALIBRATION_MENU);
+      stateMachine_.transitionTo(AppState::SETTINGS_MENU);
     }
   }
 
@@ -612,8 +671,16 @@ private:
       Screens::drawMainMenu(disp, menuIndex_);
       break;
 
+    case AppState::COLOR_PICKER_MENU:
+      Screens::drawColorPickerMenu(disp, colorPickerMenuIndex_);
+      break;
+
+    case AppState::CALLIPER_MENU:
+      Screens::drawCalliperMenu(disp, calliperMenuIndex_);
+      break;
+
     case AppState::PICK_COLOR:
-      Screens::drawPickColor(disp, currentMeasurement_, measuring_, nullptr);
+      Screens::drawPickColor(disp, currentMeasurement_, measuring_);
       break;
 
     case AppState::PICK_RESULT:
@@ -648,9 +715,10 @@ private:
                                      measureDetailActionIndex_);
       break;
 
-    case AppState::CALIBRATION_MENU:
-      Screens::drawCalibrationMenu(disp, sensor.getCalibration(),
-                                   calibMenuIndex_, sensor.getGainLabel());
+    case AppState::SETTINGS_MENU:
+      Screens::drawSettingsMenu(disp, sensor.getCalibration(),
+                                settingsMenuIndex_, sensor.getGainLabel(),
+                                screenRotation_);
       break;
 
     case AppState::CALIB_DARK:
@@ -717,8 +785,13 @@ private:
   SavedMeasurement selectedMeasurement_;
   int measureDetailActionIndex_ = 0;
 
+  // Sub-menu indices
+  int colorPickerMenuIndex_ = 0;
+  int calliperMenuIndex_ = 0;
+  int settingsMenuIndex_ = 0;
+  uint8_t screenRotation_ = Config::LCD::ROTATION;
+
   // Calibration state
-  int calibMenuIndex_ = 0;
   bool calibrating_ = false;
 
   // System state

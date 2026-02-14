@@ -107,6 +107,16 @@ public:
 
   void setBrightness(uint8_t level) { lcd_.setBrightness(level); }
 
+  void setRotation(uint8_t rotation) {
+    lcd_.setRotation(rotation);
+    // Recreate sprite to match new dimensions
+    sprite_.deleteSprite();
+    int w = lcd_.width();
+    int h = lcd_.height();
+    sprite_.createSprite(w, h);
+    sprite_.setSwapBytes(true);
+  }
+
   bool isInitialized() const { return initialized_; }
 
   // ── Drawing helpers ─────────────────────────────────────

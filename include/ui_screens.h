@@ -46,33 +46,46 @@ inline void drawBoot(DisplayManager &disp, float progress, const char *status) {
 // ── Main Menu ───────────────────────────────────────────────
 inline void drawMainMenu(DisplayManager &disp, int selectedIndex) {
   disp.clear();
-  disp.drawHeader("Color Picker");
 
-  const char *items[] = {"Pick Color", "Saved Colors", "Measure",
-                         "Measurements", "Calibration"};
+  const char *items[] = {"Color Picker", "Calliper", "Settings"};
 
-  for (int i = 0; i < 5; i++) {
-    disp.drawMenuItem(i, items[i], i == selectedIndex);
+  for (int i = 0; i < 3; i++) {
+    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
   }
 
-  // Draw decorative icons (using simple shapes)
-  auto &c = disp.canvas();
+  disp.flush();
+}
 
-  // Pick Color icon - eyedropper
-  int iconX = Config::LCD::WIDTH - 60;
-  c.fillCircle(iconX, 50, 8, Config::UI::COLOR_ACCENT);
+// ── Color Picker Sub-Menu ───────────────────────────────────
+inline void drawColorPickerMenu(DisplayManager &disp, int selectedIndex) {
+  disp.clear();
 
-  // Status bar
-  disp.drawStatusBar("Scroll: Navigate | Press: Select");
+  const char *items[] = {"New Color", "Saved Color"};
+
+  for (int i = 0; i < 2; i++) {
+    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
+  }
+
+  disp.flush();
+}
+
+// ── Calliper Sub-Menu ───────────────────────────────────────
+inline void drawCalliperMenu(DisplayManager &disp, int selectedIndex) {
+  disp.clear();
+
+  const char *items[] = {"New Measure", "Saved Measure"};
+
+  for (int i = 0; i < 2; i++) {
+    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
+  }
 
   disp.flush();
 }
 
 // ── Pick Color – Live Measurement ───────────────────────────
 inline void drawPickColor(DisplayManager &disp, const SpectralData &data,
-                          bool measuring, const char *statusMsg) {
+                          bool measuring) {
   disp.clear();
-  disp.drawHeader("Pick Color");
 
   auto &c = disp.canvas();
 
@@ -80,17 +93,17 @@ inline void drawPickColor(DisplayManager &disp, const SpectralData &data,
     // Measuring animation
     c.setTextColor(Config::UI::COLOR_ACCENT);
     c.setTextSize(2);
-    c.drawString("Measuring...", 90, 70);
+    c.drawString("Measuring...", 90, 40);
 
     // Animated dots
     static int dots = 0;
     dots = (dots + 1) % 4;
     for (int i = 0; i < dots; i++) {
-      c.fillCircle(120 + i * 20, 100, 4, Config::UI::COLOR_ACCENT);
+      c.fillCircle(120 + i * 20, 70, 4, Config::UI::COLOR_ACCENT);
     }
   } else if (data.valid) {
     // ── Color swatch ────────────────────────────────────
-    disp.drawColorSwatch(10, 38, 80, 60, data.toRGB565());
+    disp.drawColorSwatch(10, 8, 80, 60, data.toRGB565());
 
     // RGB values
     c.setTextColor(TFT_WHITE);
@@ -98,39 +111,32 @@ inline void drawPickColor(DisplayManager &disp, const SpectralData &data,
     char buf[32];
 
     snprintf(buf, sizeof(buf), "R: %d", data.r);
-    c.drawString(buf, 100, 40);
+    c.drawString(buf, 100, 10);
     snprintf(buf, sizeof(buf), "G: %d", data.g);
-    c.drawString(buf, 100, 55);
+    c.drawString(buf, 100, 25);
     snprintf(buf, sizeof(buf), "B: %d", data.b);
-    c.drawString(buf, 100, 70);
+    c.drawString(buf, 100, 40);
 
     // HEX value
     char hex[8];
     snprintf(hex, sizeof(hex), "#%02X%02X%02X", data.r, data.g, data.b);
     c.setTextSize(2);
     c.setTextColor(Config::UI::COLOR_ACCENT);
-    c.drawString(hex, 100, 85);
+    c.drawString(hex, 100, 55);
 
     // ── Spectral bar chart ──────────────────────────────
-    disp.drawSpectralBars(data.calibrated, 12, 180, 38, 130, 60);
+    disp.drawSpectralBars(data.calibrated, 12, 180, 8, 130, 60);
 
     // Channel labels
     c.setTextSize(1);
     c.setTextColor(0x7BEF);
-    c.drawString("F1 F2 FZ F3 F4 FY F5 XL F6 F7 F8 NR", 180, 100);
+    c.drawString("F1 F2 FZ F3 F4 FY F5 XL F6 F7 F8 NR", 180, 70);
 
     // CIE XYZ
     snprintf(buf, sizeof(buf), "X:%.3f Y:%.3f Z:%.3f", data.cie_X, data.cie_Y,
              data.cie_Z);
     c.setTextColor(0x7BEF);
-    c.drawString(buf, 10, 110);
-  }
-
-  // Status / action bar
-  if (statusMsg) {
-    disp.drawStatusBar(statusMsg);
-  } else {
-    disp.drawStatusBar("Press: Measure | Long: Back");
+    c.drawString(buf, 10, 80);
   }
 
   disp.flush();
@@ -140,29 +146,28 @@ inline void drawPickColor(DisplayManager &disp, const SpectralData &data,
 inline void drawPickResult(DisplayManager &disp, const SpectralData &data,
                            int selectedAction) {
   disp.clear();
-  disp.drawHeader("Result");
 
   auto &c = disp.canvas();
 
   // Color swatch (larger)
-  disp.drawColorSwatch(10, 38, 100, 70, data.toRGB565());
+  disp.drawColorSwatch(10, 8, 100, 70, data.toRGB565());
 
   // Color info
   c.setTextColor(TFT_WHITE);
   c.setTextSize(2);
   char hex[8];
   snprintf(hex, sizeof(hex), "#%02X%02X%02X", data.r, data.g, data.b);
-  c.drawString(hex, 120, 45);
+  c.drawString(hex, 120, 15);
 
   c.setTextSize(1);
   char buf[64];
   snprintf(buf, sizeof(buf), "RGB(%d, %d, %d)", data.r, data.g, data.b);
-  c.drawString(buf, 120, 70);
+  c.drawString(buf, 120, 40);
 
   // Action buttons
   const char *actions[] = {"Save Color", "Discard", "Measure Again"};
   for (int i = 0; i < 3; i++) {
-    int y = 115 + i * 18;
+    int y = 85 + i * 18;
     uint16_t bg = (i == selectedAction) ? Config::UI::COLOR_SELECTED
                                         : Config::UI::COLOR_BG;
     uint16_t fg = (i == selectedAction) ? TFT_WHITE : 0xB596;
@@ -172,7 +177,6 @@ inline void drawPickResult(DisplayManager &disp, const SpectralData &data,
     c.drawString(actions[i], 128, y + 3);
   }
 
-  disp.drawStatusBar("Scroll: Select | Press: Confirm");
   disp.flush();
 }
 
@@ -182,28 +186,22 @@ inline void drawSavedColorsList(DisplayManager &disp,
                                 int selectedIndex, int scrollOffset) {
   disp.clear();
 
-  char headerBuf[32];
-  snprintf(headerBuf, sizeof(headerBuf), "Saved Colors (%d)",
-           (int)colors.size());
-  disp.drawHeader(headerBuf);
-
   auto &c = disp.canvas();
 
   if (colors.empty()) {
     c.setTextColor(0x7BEF);
     c.setTextSize(2);
-    c.drawString("No colors saved", 60, 70);
+    c.drawString("No colors saved", 60, 40);
     c.setTextSize(1);
-    c.drawString("Go to Pick Color to start", 70, 100);
+    c.drawString("Go to Pick Color to start", 70, 70);
   } else {
-    // Visible items (max 4-5 on screen)
-    int visibleItems = 5;
+    int visibleItems = 6;
     int startIdx = scrollOffset;
     int endIdx = min(startIdx + visibleItems, (int)colors.size());
 
     for (int i = startIdx; i < endIdx; i++) {
       int row = i - startIdx;
-      int y = Config::UI::HEADER_HEIGHT + (row * Config::UI::MENU_ITEM_HEIGHT);
+      int y = row * Config::UI::MENU_ITEM_HEIGHT;
       bool sel = (i == selectedIndex);
 
       uint16_t bg = sel ? Config::UI::COLOR_SELECTED : Config::UI::COLOR_BG;
@@ -227,20 +225,17 @@ inline void drawSavedColorsList(DisplayManager &disp,
 
     // Scroll indicator
     if ((int)colors.size() > visibleItems) {
-      int barHeight = Config::LCD::HEIGHT - Config::UI::HEADER_HEIGHT - 20;
+      int barHeight = Config::LCD::HEIGHT;
       int thumbHeight = max(10, barHeight * visibleItems / (int)colors.size());
-      int thumbY = Config::UI::HEADER_HEIGHT +
-                   (barHeight - thumbHeight) * scrollOffset /
-                       max(1, (int)colors.size() - visibleItems);
+      int thumbY = (barHeight - thumbHeight) * scrollOffset /
+                   max(1, (int)colors.size() - visibleItems);
 
-      c.fillRect(Config::LCD::WIDTH - 4, Config::UI::HEADER_HEIGHT, 4,
-                 barHeight, 0x2104);
+      c.fillRect(Config::LCD::WIDTH - 4, 0, 4, barHeight, 0x2104);
       c.fillRect(Config::LCD::WIDTH - 4, thumbY, 4, thumbHeight,
                  Config::UI::COLOR_ACCENT);
     }
   }
 
-  disp.drawStatusBar("Press: View | Long: Back");
   disp.flush();
 }
 
@@ -248,41 +243,39 @@ inline void drawSavedColorsList(DisplayManager &disp,
 inline void drawSavedColorDetail(DisplayManager &disp, const SavedColor &color,
                                  int selectedAction) {
   disp.clear();
-  disp.drawHeader("Color Detail");
 
   auto &c = disp.canvas();
 
   // Large color swatch
   uint16_t swatch =
       ((color.r & 0xF8) << 8) | ((color.g & 0xFC) << 3) | (color.b >> 3);
-  disp.drawColorSwatch(10, 38, 80, 60, swatch);
+  disp.drawColorSwatch(10, 8, 80, 60, swatch);
 
   // Info
   c.setTextColor(TFT_WHITE);
   c.setTextSize(2);
-  c.drawString(color.hex, 100, 42);
+  c.drawString(color.hex, 100, 12);
 
   c.setTextSize(1);
   char buf[64];
   snprintf(buf, sizeof(buf), "RGB(%d, %d, %d)", color.r, color.g, color.b);
-  c.drawString(buf, 100, 65);
+  c.drawString(buf, 100, 35);
 
   snprintf(buf, sizeof(buf), "Saved: %lu", color.timestamp);
   c.setTextColor(0x7BEF);
-  c.drawString(buf, 100, 80);
+  c.drawString(buf, 100, 50);
 
   // Spectral data
   float spectral[12];
   for (int i = 0; i < 12; i++) {
     spectral[i] = static_cast<float>(color.raw[i]);
   }
-  disp.drawSpectralBars(spectral, 12, 10, 105, 200, 35);
+  disp.drawSpectralBars(spectral, 12, 10, 75, 200, 35);
 
   // Actions
   const char *actions[] = {"Back", "Delete"};
   for (int i = 0; i < 2; i++) {
-    int ax = 220 + i * 0;
-    int ay = 110 + i * 22;
+    int ay = 80 + i * 22;
     uint16_t abg = (i == selectedAction) ? Config::UI::COLOR_SELECTED : 0x2104;
     uint16_t cfg2 = (i == selectedAction) ? TFT_WHITE
                                           : (i == 1 ? Config::UI::COLOR_ERROR
@@ -293,59 +286,42 @@ inline void drawSavedColorDetail(DisplayManager &disp, const SavedColor &color,
     c.drawString(actions[i], 235, ay + 5);
   }
 
-  disp.drawStatusBar("Scroll: Action | Press: Confirm");
   disp.flush();
 }
 
-// ── Calibration Menu ────────────────────────────────────────
-inline void drawCalibrationMenu(DisplayManager &disp,
-                                const CalibrationData &cal, int selectedIndex,
-                                const char *gainLabel) {
+// ── Settings Menu ───────────────────────────────────────────
+inline void drawSettingsMenu(DisplayManager &disp,
+                             const CalibrationData &cal, int selectedIndex,
+                             const char *gainLabel, uint8_t rotation) {
   disp.clear();
-  disp.drawHeader("Calibration");
 
   auto &c = disp.canvas();
 
-  // Build gain item label with current value
+  // Build dynamic item labels
+  char calibItem[40];
+  {
+    int calibCount = (int)cal.hasDark + (int)cal.hasGray + (int)cal.hasWhite;
+    if (calibCount == 3)
+      snprintf(calibItem, sizeof(calibItem), "Calibration CG-3 (OK)");
+    else
+      snprintf(calibItem, sizeof(calibItem), "Calibration CG-3 (%d/3)",
+               calibCount);
+  }
+
   char gainItem[32];
   snprintf(gainItem, sizeof(gainItem), "Sensor Gain: %s", gainLabel);
 
-  const char *items[] = {"Calibrate", gainItem, "Reset Calibration"};
+  const char *orientLabels[] = {"0", "90", "180", "270"};
+  char orientItem[32];
+  snprintf(orientItem, sizeof(orientItem), "Orientation: %s",
+           orientLabels[rotation % 4]);
+
+  const char *items[] = {calibItem, gainItem, orientItem};
 
   for (int i = 0; i < 3; i++) {
-    int y = Config::UI::HEADER_HEIGHT + (i * Config::UI::MENU_ITEM_HEIGHT);
-    bool sel = (i == selectedIndex);
-
-    uint16_t bg = sel ? Config::UI::COLOR_SELECTED : Config::UI::COLOR_BG;
-    c.fillRect(0, y, Config::LCD::WIDTH, Config::UI::MENU_ITEM_HEIGHT, bg);
-
-    // Text
-    c.setTextColor(sel ? TFT_WHITE : Config::UI::COLOR_FG, bg);
-    c.setTextSize(1);
-    c.drawString(items[i], 24, y + 8);
+    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
   }
 
-  // Current calibration status
-  int statusY =
-      Config::UI::HEADER_HEIGHT + 3 * Config::UI::MENU_ITEM_HEIGHT + 4;
-  c.setTextSize(1);
-  c.setTextColor(0x7BEF);
-  c.drawString("Status:", 10, statusY);
-
-  const char *labels[] = {"Dark", "Gray", "White"};
-  bool done[] = {cal.hasDark, cal.hasGray, cal.hasWhite};
-
-  for (int i = 0; i < 3; i++) {
-    int y = statusY + 14 + i * 12;
-    uint16_t dotColor = done[i] ? Config::UI::COLOR_SUCCESS : 0x7BEF;
-    c.fillCircle(18, y + 3, 3, dotColor);
-    c.setTextColor(TFT_WHITE);
-    c.drawString(labels[i], 28, y);
-    c.setTextColor(done[i] ? Config::UI::COLOR_SUCCESS : 0x7BEF);
-    c.drawString(done[i] ? "OK" : "--", 80, y);
-  }
-
-  disp.drawStatusBar("Press: Select | Long: Back");
   disp.flush();
 }
 
@@ -355,36 +331,38 @@ inline void drawCalibCapture(DisplayManager &disp, const char *type,
                              int step, int totalSteps) {
   disp.clear();
 
-  char header[48];
-  snprintf(header, sizeof(header), "Step %d/%d: %s", step, totalSteps, type);
-  disp.drawHeader(header);
-
   auto &c = disp.canvas();
+
+  // Step info
+  char stepBuf[48];
+  snprintf(stepBuf, sizeof(stepBuf), "Step %d/%d: %s", step, totalSteps, type);
+  c.setTextColor(Config::UI::COLOR_ACCENT);
+  c.setTextSize(2);
+  c.drawString(stepBuf, 10, 5);
 
   if (capturing) {
     c.setTextColor(Config::UI::COLOR_WARNING);
     c.setTextSize(2);
-    c.drawString("Capturing...", 80, 55);
+    c.drawString("Capturing...", 80, 40);
 
     float progress = 0.5f;
-    disp.drawProgressBar(40, 85, 240, 20, progress, Config::UI::COLOR_ACCENT);
+    disp.drawProgressBar(40, 70, 240, 20, progress, Config::UI::COLOR_ACCENT);
 
     c.setTextSize(1);
     c.setTextColor(TFT_WHITE);
-    c.drawString("Hold steady - averaging 10 samples", 40, 115);
+    c.drawString("Hold steady - averaging 10 samples", 40, 100);
   } else {
     c.setTextColor(TFT_WHITE);
     c.setTextSize(1);
 
     // Instruction
-    c.drawString(instruction, 20, 50);
+    c.drawString(instruction, 20, 40);
 
     c.setTextSize(2);
     c.setTextColor(Config::UI::COLOR_ACCENT);
-    c.drawString("Press to capture", 50, 90);
+    c.drawString("Press to capture", 50, 70);
   }
 
-  disp.drawStatusBar("Press: Capture | Long: Cancel");
   disp.flush();
 }
 
@@ -392,29 +370,27 @@ inline void drawCalibCapture(DisplayManager &disp, const char *type,
 inline void drawCalibComplete(DisplayManager &disp,
                               const CalibrationData &cal) {
   disp.clear();
-  disp.drawHeader("Calibration Complete", Config::UI::COLOR_SUCCESS);
 
   auto &c = disp.canvas();
 
   c.setTextColor(Config::UI::COLOR_SUCCESS);
   c.setTextSize(2);
-  c.drawString("Success!", 110, 45);
+  c.drawString("Calibration Complete", 40, 10);
 
   c.setTextSize(1);
   c.setTextColor(TFT_WHITE);
 
   char buf[64];
   snprintf(buf, sizeof(buf), "Dark ref:  %s", cal.hasDark ? "OK" : "Missing");
-  c.drawString(buf, 40, 75);
+  c.drawString(buf, 40, 45);
   snprintf(buf, sizeof(buf), "Gray ref:  %s", cal.hasGray ? "OK" : "Missing");
-  c.drawString(buf, 40, 90);
+  c.drawString(buf, 40, 60);
   snprintf(buf, sizeof(buf), "White ref: %s", cal.hasWhite ? "OK" : "N/A");
-  c.drawString(buf, 40, 105);
+  c.drawString(buf, 40, 75);
 
   c.setTextColor(0x7BEF);
-  c.drawString("Calibration saved to SD card", 50, 130);
+  c.drawString("Calibration saved to SD card", 50, 100);
 
-  disp.drawStatusBar("Press: Return to menu");
   disp.flush();
 }
 
@@ -422,32 +398,34 @@ inline void drawCalibComplete(DisplayManager &disp,
 inline void drawError(DisplayManager &disp, const char *title,
                       const char *message) {
   disp.clear();
-  disp.drawHeader(title, Config::UI::COLOR_ERROR);
 
   auto &c = disp.canvas();
 
+  // Error title
+  c.setTextColor(Config::UI::COLOR_ERROR);
+  c.setTextSize(2);
+  c.drawString(title, 10, 10);
+
   // Error icon (X)
-  c.drawLine(140, 50, 180, 90, Config::UI::COLOR_ERROR);
-  c.drawLine(180, 50, 140, 90, Config::UI::COLOR_ERROR);
+  c.drawLine(140, 40, 180, 80, Config::UI::COLOR_ERROR);
+  c.drawLine(180, 40, 140, 80, Config::UI::COLOR_ERROR);
 
   c.setTextColor(TFT_WHITE);
   c.setTextSize(1);
-  c.drawString(message, 20, 110);
+  c.drawString(message, 20, 95);
 
-  disp.drawStatusBar("Press: Acknowledge");
   disp.flush();
 }
 
 // ── Measure – Active Ruler ──────────────────────────────────
 inline void drawMeasure(DisplayManager &disp, int16_t offset) {
   disp.clear();
-  disp.drawHeader("Measure");
 
   auto &c = disp.canvas();
 
   const int centerX = Config::LCD::WIDTH / 2;
-  const int areaTop = Config::UI::HEADER_HEIGHT;
-  const int areaBottom = Config::LCD::HEIGHT - 20;
+  const int areaTop = 0;
+  const int areaBottom = Config::LCD::HEIGHT;
   const int centerY = areaTop + (areaBottom - areaTop) / 2;
 
   // Measurement lines (orange, full height) - always visible
@@ -482,7 +460,6 @@ inline void drawMeasure(DisplayManager &disp, int16_t offset) {
   textW = c.textWidth(buf);
   c.drawString(buf, centerX - textW / 2, centerY + 32);
 
-  disp.drawStatusBar("Scroll: Adjust | Press: OK | Long: Back");
   disp.flush();
 }
 
@@ -490,7 +467,6 @@ inline void drawMeasure(DisplayManager &disp, int16_t offset) {
 inline void drawMeasureResult(DisplayManager &disp, float mm, uint16_t px,
                               int selectedAction) {
   disp.clear();
-  disp.drawHeader("Result");
 
   auto &c = disp.canvas();
 
@@ -500,17 +476,17 @@ inline void drawMeasureResult(DisplayManager &disp, float mm, uint16_t px,
   c.setTextColor(Config::UI::COLOR_ACCENT);
   c.setTextSize(3);
   int textW = c.textWidth(buf);
-  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 42);
+  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 12);
 
   // Pixel value
   snprintf(buf, sizeof(buf), "%d px", px);
   c.setTextColor(0x7BEF);
   c.setTextSize(1);
   textW = c.textWidth(buf);
-  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 72);
+  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 42);
 
   // Visual range bar
-  int barY = 90;
+  int barY = 60;
   int barLeft = Config::LCD::WIDTH / 2 - px / 2;
   int barRight = Config::LCD::WIDTH / 2 + px / 2;
   // Clamp to screen
@@ -523,7 +499,7 @@ inline void drawMeasureResult(DisplayManager &disp, float mm, uint16_t px,
   // Action buttons
   const char *actions[] = {"Save", "Discard", "Measure Again"};
   for (int i = 0; i < 3; i++) {
-    int y = 105 + i * 18;
+    int y = 75 + i * 18;
     uint16_t bg = (i == selectedAction) ? Config::UI::COLOR_SELECTED
                                         : Config::UI::COLOR_BG;
     uint16_t fg = (i == selectedAction) ? TFT_WHITE : 0xB596;
@@ -534,7 +510,6 @@ inline void drawMeasureResult(DisplayManager &disp, float mm, uint16_t px,
     c.drawString(actions[i], 108, y + 3);
   }
 
-  disp.drawStatusBar("Scroll: Select | Press: Confirm");
   disp.flush();
 }
 
@@ -544,27 +519,22 @@ inline void drawMeasurementsList(DisplayManager &disp,
                                  int selectedIndex, int scrollOffset) {
   disp.clear();
 
-  char headerBuf[32];
-  snprintf(headerBuf, sizeof(headerBuf), "Measurements (%d)",
-           (int)measurements.size());
-  disp.drawHeader(headerBuf);
-
   auto &c = disp.canvas();
 
   if (measurements.empty()) {
     c.setTextColor(0x7BEF);
     c.setTextSize(2);
-    c.drawString("No measurements", 60, 60);
+    c.drawString("No measurements", 60, 40);
     c.setTextSize(1);
-    c.drawString("Go to Measure to start", 80, 90);
+    c.drawString("Go to Measure to start", 80, 70);
   } else {
-    int visibleItems = 5;
+    int visibleItems = 6;
     int startIdx = scrollOffset;
     int endIdx = min(startIdx + visibleItems, (int)measurements.size());
 
     for (int i = startIdx; i < endIdx; i++) {
       int row = i - startIdx;
-      int y = Config::UI::HEADER_HEIGHT + (row * Config::UI::MENU_ITEM_HEIGHT);
+      int y = row * Config::UI::MENU_ITEM_HEIGHT;
       bool sel = (i == selectedIndex);
 
       uint16_t bg = sel ? Config::UI::COLOR_SELECTED : Config::UI::COLOR_BG;
@@ -587,21 +557,18 @@ inline void drawMeasurementsList(DisplayManager &disp,
 
     // Scroll indicator
     if ((int)measurements.size() > visibleItems) {
-      int barHeight = Config::LCD::HEIGHT - Config::UI::HEADER_HEIGHT - 20;
+      int barHeight = Config::LCD::HEIGHT;
       int thumbHeight =
           max(10, barHeight * visibleItems / (int)measurements.size());
-      int thumbY = Config::UI::HEADER_HEIGHT +
-                   (barHeight - thumbHeight) * scrollOffset /
-                       max(1, (int)measurements.size() - visibleItems);
+      int thumbY = (barHeight - thumbHeight) * scrollOffset /
+                   max(1, (int)measurements.size() - visibleItems);
 
-      c.fillRect(Config::LCD::WIDTH - 4, Config::UI::HEADER_HEIGHT, 4,
-                 barHeight, 0x2104);
+      c.fillRect(Config::LCD::WIDTH - 4, 0, 4, barHeight, 0x2104);
       c.fillRect(Config::LCD::WIDTH - 4, thumbY, 4, thumbHeight,
                  Config::UI::COLOR_ACCENT);
     }
   }
 
-  disp.drawStatusBar("Press: View | Long: Back");
   disp.flush();
 }
 
@@ -610,7 +577,6 @@ inline void drawMeasurementDetail(DisplayManager &disp,
                                   const SavedMeasurement &m,
                                   int selectedAction) {
   disp.clear();
-  disp.drawHeader("Measurement Detail");
 
   auto &c = disp.canvas();
 
@@ -620,14 +586,14 @@ inline void drawMeasurementDetail(DisplayManager &disp,
   c.setTextColor(Config::UI::COLOR_ACCENT);
   c.setTextSize(3);
   int textW = c.textWidth(buf);
-  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 45);
+  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 15);
 
   // Pixel value
   snprintf(buf, sizeof(buf), "%d px", m.value_px);
   c.setTextColor(0x7BEF);
   c.setTextSize(1);
   textW = c.textWidth(buf);
-  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 78);
+  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 48);
 
   // Timestamp
   unsigned long sec = m.timestamp / 1000;
@@ -637,10 +603,10 @@ inline void drawMeasurementDetail(DisplayManager &disp,
   snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu", h, min, s);
   c.setTextColor(0x7BEF);
   textW = c.textWidth(buf);
-  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 93);
+  c.drawString(buf, Config::LCD::WIDTH / 2 - textW / 2, 63);
 
   // Visual range bar
-  int barY = 110;
+  int barY = 80;
   int halfPx = m.value_px / 2;
   int barLeft = Config::LCD::WIDTH / 2 - halfPx;
   int barRight = Config::LCD::WIDTH / 2 + halfPx;
@@ -653,7 +619,7 @@ inline void drawMeasurementDetail(DisplayManager &disp,
   // Actions
   const char *actions[] = {"Back", "Delete"};
   for (int i = 0; i < 2; i++) {
-    int ay = 125 + i * 20;
+    int ay = 95 + i * 20;
     uint16_t abg = (i == selectedAction) ? Config::UI::COLOR_SELECTED : 0x2104;
     uint16_t afg = (i == selectedAction) ? TFT_WHITE
                                          : (i == 1 ? Config::UI::COLOR_ERROR
@@ -666,7 +632,6 @@ inline void drawMeasurementDetail(DisplayManager &disp,
     c.drawString(actions[i], Config::LCD::WIDTH / 2 - tw / 2, ay + 4);
   }
 
-  disp.drawStatusBar("Scroll: Action | Press: Confirm");
   disp.flush();
 }
 

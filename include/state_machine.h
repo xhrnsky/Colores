@@ -9,16 +9,24 @@
 // ── Application States ──────────────────────────────────────
 enum class AppState : uint8_t {
   BOOT,               // Splash screen / initialization
-  MAIN_MENU,          // Top-level menu
+  MAIN_MENU,          // Top-level menu (3 items)
+
+  // Color Picker sub-menu
+  COLOR_PICKER_MENU,  // Sub-menu: New Color / Saved Color
   PICK_COLOR,         // Live measurement screen
   PICK_RESULT,        // After measurement – save/discard
   SAVED_COLORS_LIST,  // List of saved colors
   SAVED_COLOR_DETAIL, // Detail view of a single saved color
+
+  // Calliper sub-menu
+  CALLIPER_MENU,      // Sub-menu: New Measure / Saved Measure
   MEASURE,            // Active ruler / caliper screen
   MEASURE_RESULT,     // Measurement result – save/discard
   MEASUREMENTS_LIST,  // Saved measurements list
   MEASUREMENT_DETAIL, // Detail view of a single measurement
-  CALIBRATION_MENU,   // Calibration sub-menu
+
+  // Settings sub-menu
+  SETTINGS_MENU,      // Sub-menu: Calibration / Gain / Orientation
   CALIB_DARK,         // Dark reference capture
   CALIB_GRAY,         // Gray card reference capture
   CALIB_WHITE,        // (Optional) White reference capture
@@ -69,30 +77,40 @@ public:
   // Get the logical parent state for back navigation
   static AppState getParentState(AppState state) {
     switch (state) {
+    // Sub-menus → Main Menu
+    case AppState::COLOR_PICKER_MENU:
+    case AppState::CALLIPER_MENU:
+    case AppState::SETTINGS_MENU:
+      return AppState::MAIN_MENU;
+
+    // Color Picker children → Color Picker Menu
     case AppState::PICK_COLOR:
     case AppState::SAVED_COLORS_LIST:
-    case AppState::MEASURE:
-    case AppState::MEASUREMENTS_LIST:
-    case AppState::CALIBRATION_MENU:
-      return AppState::MAIN_MENU;
+      return AppState::COLOR_PICKER_MENU;
 
     case AppState::PICK_RESULT:
       return AppState::PICK_COLOR;
 
-    case AppState::MEASURE_RESULT:
-      return AppState::MEASURE;
-
     case AppState::SAVED_COLOR_DETAIL:
       return AppState::SAVED_COLORS_LIST;
+
+    // Calliper children → Calliper Menu
+    case AppState::MEASURE:
+    case AppState::MEASUREMENTS_LIST:
+      return AppState::CALLIPER_MENU;
+
+    case AppState::MEASURE_RESULT:
+      return AppState::MEASURE;
 
     case AppState::MEASUREMENT_DETAIL:
       return AppState::MEASUREMENTS_LIST;
 
+    // Settings children → Settings Menu
     case AppState::CALIB_DARK:
     case AppState::CALIB_GRAY:
     case AppState::CALIB_WHITE:
     case AppState::CALIB_COMPLETE:
-      return AppState::CALIBRATION_MENU;
+      return AppState::SETTINGS_MENU;
 
     case AppState::ERROR_SCREEN:
       return AppState::MAIN_MENU;
