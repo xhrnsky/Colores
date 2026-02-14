@@ -43,40 +43,91 @@ inline void drawBoot(DisplayManager &disp, float progress, const char *status) {
   disp.flush();
 }
 
-// ── Main Menu ───────────────────────────────────────────────
+// ── Main Menu (Carousel Style) ──────────────────────────────
 inline void drawMainMenu(DisplayManager &disp, int selectedIndex) {
   disp.clear();
 
+  auto &c = disp.canvas();
+
   const char *items[] = {"Color Picker", "Calliper", "Settings"};
 
-  for (int i = 0; i < 3; i++) {
-    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
-  }
+  // Card dimensions
+  const int cardX = 24;
+  const int cardY = 8;
+  const int cardW = 272;
+  const int cardH = 128;
+  const int cardR = 14;
+
+  // Rounded rectangle card outline (thin gray border)
+  c.drawRoundRect(cardX, cardY, cardW, cardH, cardR, 0x7BEF);
+
+  // Item name – large bold text near bottom of card
+  c.setTextSize(3);
+  c.setTextColor(TFT_WHITE);
+  const char *label = items[selectedIndex];
+  int textW = c.textWidth(label);
+  int textX = (Config::LCD::WIDTH - textW) / 2;
+  int textY = 114;
+  c.drawString(label, textX, textY);
+
+  // Left/right chevrons at same level as text
+  c.setTextSize(2);
+  c.setTextColor(0x7BEF);
+  c.drawString("<", 30, 120);
+  c.drawString(">", 282, 120);
 
   disp.flush();
 }
 
-// ── Color Picker Sub-Menu ───────────────────────────────────
+// ── Color Picker Sub-Menu (Centered Text List) ─────────────
 inline void drawColorPickerMenu(DisplayManager &disp, int selectedIndex) {
   disp.clear();
 
-  const char *items[] = {"New Color", "Saved Color"};
+  auto &c = disp.canvas();
 
-  for (int i = 0; i < 2; i++) {
-    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
+  const char *items[] = {"New Color", "Saved Colors", "Back"};
+  const int itemCount = 3;
+  const int spacing = 38;
+  const int startY = 32;
+
+  c.setTextSize(2);
+
+  for (int i = 0; i < itemCount; i++) {
+    bool sel = (i == selectedIndex);
+    c.setTextColor(sel ? TFT_WHITE : 0x7BEF);
+
+    int textW = c.textWidth(items[i]);
+    int textX = (Config::LCD::WIDTH - textW) / 2;
+    int textY = startY + i * spacing;
+
+    c.drawString(items[i], textX, textY);
   }
 
   disp.flush();
 }
 
-// ── Calliper Sub-Menu ───────────────────────────────────────
+// ── Calliper Sub-Menu (Centered Text List) ──────────────────
 inline void drawCalliperMenu(DisplayManager &disp, int selectedIndex) {
   disp.clear();
 
-  const char *items[] = {"New Measure", "Saved Measure"};
+  auto &c = disp.canvas();
 
-  for (int i = 0; i < 2; i++) {
-    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
+  const char *items[] = {"New Measure", "Saved Measure", "Back"};
+  const int itemCount = 3;
+  const int spacing = 38;
+  const int startY = 32;
+
+  c.setTextSize(2);
+
+  for (int i = 0; i < itemCount; i++) {
+    bool sel = (i == selectedIndex);
+    c.setTextColor(sel ? TFT_WHITE : 0x7BEF);
+
+    int textW = c.textWidth(items[i]);
+    int textX = (Config::LCD::WIDTH - textW) / 2;
+    int textY = startY + i * spacing;
+
+    c.drawString(items[i], textX, textY);
   }
 
   disp.flush();
@@ -424,41 +475,69 @@ inline void drawMeasure(DisplayManager &disp, int16_t offset) {
   auto &c = disp.canvas();
 
   const int centerX = Config::LCD::WIDTH / 2;
-  const int areaTop = 0;
-  const int areaBottom = Config::LCD::HEIGHT;
-  const int centerY = areaTop + (areaBottom - areaTop) / 2;
+  const int centerY = Config::LCD::HEIGHT / 2;
+  const int screenH = Config::LCD::HEIGHT;
+  const int screenW = Config::LCD::WIDTH;
 
-  // Measurement lines (orange, full height) - always visible
-  int leftX = centerX - offset;
-  int rightX = centerX + offset;
-  c.drawFastVLine(leftX, areaTop, areaBottom - areaTop, Config::UI::COLOR_WARNING);
-  c.drawFastVLine(rightX, areaTop, areaBottom - areaTop, Config::UI::COLOR_WARNING);
-
-  // Horizontal connector between lines
-  if (offset > 0) {
-    c.drawFastHLine(leftX, centerY, rightX - leftX, 0x4208);
-  }
-
-  // Crosshair (cyan, small) - drawn on top
-  c.drawFastHLine(centerX - 5, centerY, 11, Config::UI::COLOR_ACCENT);
-  c.drawFastVLine(centerX, centerY - 5, 11, Config::UI::COLOR_ACCENT);
-
-  // Display current value
+  // Calculate values
   uint16_t totalPx = offset * 2;
   float mm = totalPx * Config::Measure::PIXEL_PITCH_MM;
 
+  // ── mm value (top-left, white) ────────────────────────
   char buf[16];
   snprintf(buf, sizeof(buf), "%.1f mm", mm);
-  c.setTextColor(Config::UI::COLOR_ACCENT);
+  c.setTextColor(TFT_WHITE);
+  c.setTextSize(2);
+  c.drawString(buf, 8, 8);
+
+  // ── px value (top-right, gray) ────────────────────────
+  snprintf(buf, sizeof(buf), "%d px", totalPx);
+  c.setTextColor(0x7BEF);
   c.setTextSize(2);
   int textW = c.textWidth(buf);
-  c.drawString(buf, centerX - textW / 2, centerY + 14);
+  c.drawString(buf, screenW - textW - 8, 8);
 
-  snprintf(buf, sizeof(buf), "(%d px)", totalPx);
-  c.setTextColor(0x7BEF);
-  c.setTextSize(1);
-  textW = c.textWidth(buf);
-  c.drawString(buf, centerX - textW / 2, centerY + 32);
+  // ── Reference line (thin, full width, at center) ──────
+  c.drawFastHLine(0, centerY, screenW, 0x2104);
+
+  // ── Measurement lines (cyan, full height) ─────────────
+  int leftX = centerX - offset;
+  int rightX = centerX + offset;
+  c.drawFastVLine(leftX, 0, screenH, Config::UI::COLOR_ACCENT);
+  c.drawFastVLine(rightX, 0, screenH, Config::UI::COLOR_ACCENT);
+
+  // ── Dashed horizontal line with arrowheads ────────────
+  if (offset > 2) {
+    const uint16_t lineColor = 0x455F; // blue
+
+    // Dashed line between measurement lines
+    for (int x = leftX + 8; x < rightX - 7; x += 8) {
+      int dashEnd = x + 4;
+      if (dashEnd > rightX - 8) dashEnd = rightX - 8;
+      if (dashEnd > x)
+        c.drawFastHLine(x, centerY, dashEnd - x, lineColor);
+    }
+
+    // Left arrowhead (pointing left)
+    c.fillTriangle(leftX + 1, centerY,
+                   leftX + 7, centerY - 4,
+                   leftX + 7, centerY + 4, lineColor);
+
+    // Right arrowhead (pointing right)
+    c.fillTriangle(rightX - 1, centerY,
+                   rightX - 7, centerY - 4,
+                   rightX - 7, centerY + 4, lineColor);
+  }
+
+  // ── Crosshair (white, dot pattern) ────────────────────
+  c.drawPixel(centerX, centerY - 2, TFT_WHITE);
+  c.drawPixel(centerX, centerY - 1, TFT_WHITE);
+  c.drawPixel(centerX, centerY + 1, TFT_WHITE);
+  c.drawPixel(centerX, centerY + 2, TFT_WHITE);
+  c.drawPixel(centerX - 2, centerY, TFT_WHITE);
+  c.drawPixel(centerX - 1, centerY, TFT_WHITE);
+  c.drawPixel(centerX + 1, centerY, TFT_WHITE);
+  c.drawPixel(centerX + 2, centerY, TFT_WHITE);
 
   disp.flush();
 }

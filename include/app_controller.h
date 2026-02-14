@@ -191,14 +191,14 @@ private:
   }
 
   // ── Color Picker Sub-Menu Handler ─────────────────────
-  // Items: 0 = New Color, 1 = Saved Color
+  // Items: 0 = New Color, 1 = Saved Colors, 2 = Back
   void handleColorPickerMenu(const Event &evt) {
     switch (evt.type) {
     case EventType::ENCODER_CW:
-      colorPickerMenuIndex_ = (colorPickerMenuIndex_ + 1) % 2;
+      colorPickerMenuIndex_ = (colorPickerMenuIndex_ + 1) % 3;
       break;
     case EventType::ENCODER_CCW:
-      colorPickerMenuIndex_ = 1 - colorPickerMenuIndex_;
+      colorPickerMenuIndex_ = (colorPickerMenuIndex_ + 2) % 3;
       break;
     case EventType::BUTTON_PRESS:
       switch (colorPickerMenuIndex_) {
@@ -211,6 +211,9 @@ private:
         colorListScroll_ = 0;
         stateMachine_.transitionTo(AppState::SAVED_COLORS_LIST);
         break;
+      case 2:
+        stateMachine_.goBack();
+        break;
       }
       break;
     case EventType::BUTTON_LONG_PRESS:
@@ -222,14 +225,14 @@ private:
   }
 
   // ── Calliper Sub-Menu Handler ─────────────────────────
-  // Items: 0 = New Measure, 1 = Saved Measure
+  // Items: 0 = New Measure, 1 = Saved Measure, 2 = Back
   void handleCalliperMenu(const Event &evt) {
     switch (evt.type) {
     case EventType::ENCODER_CW:
-      calliperMenuIndex_ = (calliperMenuIndex_ + 1) % 2;
+      calliperMenuIndex_ = (calliperMenuIndex_ + 1) % 3;
       break;
     case EventType::ENCODER_CCW:
-      calliperMenuIndex_ = 1 - calliperMenuIndex_;
+      calliperMenuIndex_ = (calliperMenuIndex_ + 2) % 3;
       break;
     case EventType::BUTTON_PRESS:
       switch (calliperMenuIndex_) {
@@ -243,6 +246,9 @@ private:
         measureListIndex_ = 0;
         measureListScroll_ = 0;
         stateMachine_.transitionTo(AppState::MEASUREMENTS_LIST);
+        break;
+      case 2:
+        stateMachine_.goBack();
         break;
       }
       break;
