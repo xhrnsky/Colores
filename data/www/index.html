@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESPC6 Color Picker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#111;color:#eee;min-height:100vh}
+.login{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}
+.login h1{color:#07ff;font-size:24px}
+.login input{padding:12px;font-size:18px;background:#222;color:#fff;border:1px solid #444;border-radius:8px;text-align:center;width:200px}
+.login button{padding:12px 32px;font-size:16px;background:#07f;color:#fff;border:none;border-radius:8px;cursor:pointer}
+.login button:hover{background:#09f}
+.login .err{color:#f44;font-size:14px}
+.app{display:none;padding:12px;max-width:900px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #333;margin-bottom:16px}
+header h1{font-size:18px;color:#07ff}
+header .status{font-size:12px;color:#888}
+header .status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+header .status .on{background:#0f0}
+header .status .off{background:#f00}
+.tabs{display:flex;gap:4px;margin-bottom:16px}
+.tabs button{padding:8px 16px;background:#222;color:#aaa;border:1px solid #333;border-radius:6px 6px 0 0;cursor:pointer;font-size:14px}
+.tabs button.active{background:#333;color:#fff;border-bottom-color:#333}
+.panel{display:none;background:#1a1a1a;border-radius:0 8px 8px 8px;padding:16px}
+.panel.active{display:block}
+.live{display:flex;gap:16px;flex-wrap:wrap}
+.swatch{width:120px;height:120px;border-radius:12px;border:2px solid #444;flex-shrink:0}
+.color-info{flex:1;min-width:200px}
+.color-info .hex{font-size:28px;font-weight:bold;color:#07ff;margin-bottom:8px}
+.color-info .rgb{font-size:14px;color:#aaa;margin-bottom:4px}
+.color-info .xyz{font-size:12px;color:#666}
+.spectrum{margin-top:16px}
+.spectrum canvas{width:100%;height:80px;border-radius:4px;background:#0a0a0a}
+.controls{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.controls button,.controls select{padding:8px 16px;background:#222;color:#eee;border:1px solid #444;border-radius:6px;cursor:pointer;font-size:13px}
+.controls button:hover{background:#333}
+.controls button.primary{background:#07f;border-color:#07f}
+.controls button.primary:hover{background:#09f}
+.controls button.danger{background:#a00;border-color:#a00}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px;text-align:left;border-bottom:1px solid #222}
+th{color:#888;font-weight:normal}
+td .sw{display:inline-block;width:20px;height:20px;border-radius:4px;vertical-align:middle;margin-right:8px;border:1px solid #444}
+.dl-row{margin-top:12px}
+.dl-row a{color:#07ff;text-decoration:none;font-size:13px}
+.settings-grid{display:grid;gap:12px}
+.settings-grid label{display:flex;justify-content:space-between;align-items:center;padding:8px;background:#222;border-radius:6px}
+.settings-grid label span{color:#aaa;font-size:14px}
+.settings-grid input,.settings-grid select{padding:6px;background:#333;color:#fff;border:1px solid #444;border-radius:4px;font-size:14px}
+.msg{padding:8px;margin:8px 0;border-radius:4px;font-size:13px}
+.msg.ok{background:#041;color:#0f0}
+.msg.err{background:#400;color:#f66}
+@media(max-width:600px){.live{flex-direction:column}.swatch{width:100%;height:80px}}
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login" id="loginScreen">
+  <h1>ESPC6 Color Picker</h1>
+  <p style="color:#888">Enter PIN to access</p>
+  <input type="password" id="pinInput" placeholder="PIN" maxlength="8" autofocus>
+  <button onclick="doLogin()">Login</button>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<!-- App -->
+<div class="app" id="app">
+  <header>
+    <h1>ESPC6 Color Picker</h1>
+    <div class="status">
+      <span class="dot" id="wsDot"></span><span id="wsStatus">Connecting...</span>
+      &nbsp;|&nbsp; Heap: <span id="heapInfo">-</span>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="active" onclick="showTab('live')">Live</button>
+    <button onclick="showTab('colors')">Colors</button>
+    <button onclick="showTab('measurements')">Measurements</button>
+    <button onclick="showTab('settings')">Settings</button>
+  </div>
+
+  <!-- Live Tab -->
+  <div class="panel active" id="tab-live">
+    <div class="live">
+      <div class="swatch" id="liveSwatch"></div>
+      <div class="color-info">
+        <div class="hex" id="liveHex">#------</div>
+        <div class="rgb" id="liveRgb">R: - G: - B: -</div>
+        <div class="xyz" id="liveXyz">X: - Y: - Z: -</div>
+      </div>
+    </div>
+    <div class="spectrum">
+      <canvas id="spectrumCanvas" height="80"></canvas>
+    </div>
+    <div class="controls">
+      <button class="primary" onclick="sendCmd('measure')">Measure</button>
+      <select id="gainSelect" onchange="setGain(this.value)">
+        <option value="0">0.5x</option><option value="1">1x</option>
+        <option value="2">2x</option><option value="3">4x</option>
+        <option value="4">8x</option><option value="5" selected>16x</option>
+        <option value="6">32x</option><option value="7">64x</option>
+        <option value="8">128x</option><option value="9">256x</option>
+        <option value="10">512x</option><option value="11">1024x</option>
+        <option value="12">2048x</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Colors Tab -->
+  <div class="panel" id="tab-colors">
+    <div class="controls" style="margin-bottom:12px">
+      <button onclick="loadColors()">Refresh</button>
+      <a class="dl-row" id="dlColors" style="padding:8px">Download CSV</a>
+    </div>
+    <table>
+      <thead><tr><th>Color</th><th>HEX</th><th>RGB</th><th></th></tr></thead>
+      <tbody id="colorsBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Measurements Tab -->
+  <div class="panel" id="tab-measurements">
+    <div class="controls" style="margin-bottom:12px">
+      <button onclick="loadMeasurements()">Refresh</button>
+      <a class="dl-row" id="dlMeasurements" style="padding:8px">Download CSV</a>
+    </div>
+    <table>
+      <thead><tr><th>Value (mm)</th><th>Pixels</th><th></th></tr></thead>
+      <tbody id="measureBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="panel" id="tab-settings">
+    <div class="settings-grid">
+      <label><span>Calibration</span>
+        <span id="calibStatus">-</span>
+      </label>
+      <label><span>Calibrate Dark</span>
+        <button onclick="calibrate(0)">Capture</button>
+      </label>
+      <label><span>Calibrate Gray (18%)</span>
+        <button onclick="calibrate(1)">Capture</button>
+      </label>
+      <label><span>Calibrate White</span>
+        <button onclick="calibrate(2)">Capture</button>
+      </label>
+      <label><span>WiFi SSID</span>
+        <input id="wifiSsid" placeholder="SSID" style="width:140px">
+      </label>
+      <label><span>WiFi Password</span>
+        <input id="wifiPass" type="password" placeholder="Password" style="width:140px">
+      </label>
+      <label><span></span>
+        <button onclick="saveWifi()">Save WiFi</button>
+      </label>
+      <label><span>Change PIN</span>
+        <input id="newPin" type="password" placeholder="New PIN" maxlength="8" style="width:100px">
+      </label>
+      <label><span></span>
+        <button onclick="changePin()">Change PIN</button>
+      </label>
+    </div>
+    <div id="settingsMsg"></div>
+  </div>
+</div>
+
+<script>
+let token='',ws=null;
+const API=location.origin;
+const CH_NAMES=['F1','F2','FZ','F3','F4','FY','F5','FXL','F6','F7','F8','NIR','Clr','FD'];
+const CH_COLORS=['#8000ff','#0000ff','#0044ff','#00ccff','#00ff44','#00ff00','#aaff00','#ff8800','#ff4400','#ff0000','#cc0000','#880000','#aaaaaa','#666666'];
+
+function doLogin(){
+  const pin=document.getElementById('pinInput').value;
+  fetch(API+'/api/login?pin='+encodeURIComponent(pin),{method:'POST'})
+    .then(r=>r.json()).then(d=>{
+      if(d.token){token=d.token;showApp()}
+      else document.getElementById('loginErr').textContent='Invalid PIN';
+    }).catch(()=>document.getElementById('loginErr').textContent='Connection error');
+}
+document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+
+function showApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('dlColors').href=API+'/api/colors/csv?token='+token;
+  document.getElementById('dlMeasurements').href=API+'/api/measurements/csv?token='+token;
+  connectWS();
+  loadStatus();
+}
+
+function showTab(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if(name==='colors')loadColors();
+  if(name==='measurements')loadMeasurements();
+  if(name==='settings')loadStatus();
+}
+
+function connectWS(){
+  const url=(location.protocol==='https:'?'wss:':'ws:')+'//' + location.host+'/ws';
+  ws=new WebSocket(url);
+  ws.onopen=()=>{
+    document.getElementById('wsDot').className='dot on';
+    document.getElementById('wsStatus').textContent='Connected';
+  };
+  ws.onclose=()=>{
+    document.getElementById('wsDot').className='dot off';
+    document.getElementById('wsStatus').textContent='Disconnected';
+    setTimeout(connectWS,3000);
+  };
+  ws.onmessage=(e)=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(d.type==='live')updateLive(d);
+    }catch(err){}
+  };
+}
+
+function updateLive(d){
+  const sw=document.getElementById('liveSwatch');
+  sw.style.background=d.hex;
+  document.getElementById('liveHex').textContent=d.hex;
+  document.getElementById('liveRgb').textContent=`R: ${d.rgb[0]}  G: ${d.rgb[1]}  B: ${d.rgb[2]}`;
+  if(d.x!==undefined)
+    document.getElementById('liveXyz').textContent=`X: ${d.x.toFixed(3)}  Y: ${d.y.toFixed(3)}  Z: ${d.z.toFixed(3)}`;
+  if(d.ch)drawSpectrum(d.ch);
+}
+
+function drawSpectrum(channels){
+  const canvas=document.getElementById('spectrumCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width=canvas.clientWidth;
+  const H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const max=Math.max(...channels,0.001);
+  const bw=Math.floor((W-20)/channels.length);
+  const gap=2;
+  for(let i=0;i<channels.length;i++){
+    const h=Math.round((channels[i]/max)*(H-10));
+    const x=10+i*(bw+gap);
+    ctx.fillStyle=CH_COLORS[i]||'#888';
+    ctx.fillRect(x,H-h,bw,h);
+    ctx.fillStyle='#666';
+    ctx.font='9px sans-serif';
+    ctx.fillText(CH_NAMES[i]||'',x,H-h-3);
+  }
+}
+
+function api(path,opts={}){
+  opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+token;
+  return fetch(API+path,opts).then(r=>{
+    if(r.status===401){token='';location.reload()}
+    return r.json();
+  });
+}
+
+function sendCmd(cmd,extra={}){
+  if(ws&&ws.readyState===1){
+    ws.send(JSON.stringify({cmd,...extra}));
+  }
+}
+
+function setGain(v){sendCmd('setGain',{value:parseInt(v)})}
+function calibrate(step){api('/api/calibrate?step='+step,{method:'POST'}).then(()=>loadStatus())}
+
+function loadStatus(){
+  api('/api/status').then(d=>{
+    document.getElementById('heapInfo').textContent=d.freeHeap+' B';
+    document.getElementById('gainSelect').value=d.gainIndex;
+    const cs=[];
+    if(d.calibDark)cs.push('Dark');
+    if(d.calibGray)cs.push('Gray');
+    if(d.calibWhite)cs.push('White');
+    document.getElementById('calibStatus').textContent=cs.length?cs.join(', ')+' OK':'Not calibrated';
+  }).catch(()=>{});
+}
+
+function loadColors(){
+  api('/api/colors').then(colors=>{
+    const tb=document.getElementById('colorsBody');
+    tb.innerHTML='';
+    colors.forEach(c=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><span class="sw" style="background:${c.hex}"></span></td>
+        <td>${c.hex}</td><td>R:${c.r} G:${c.g} B:${c.b}</td>
+        <td><button onclick="deleteColor(${c.i})" style="background:#400;color:#f66;border:none;padding:4px 8px;border-radius:4px;cursor:pointer">Del</button></td>`;
+      tb.appendChild(tr);
+    });
+  });
+}
+
+function loadMeasurements(){
+  api('/api/measurements').then(data=>{
+    const tb=document.getElementById('measureBody');
+    tb.innerHTML='';
+    data.forEach(m=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${m.mm.toFixed(1)} mm</td><td>${m.px} px</td>
+        <td><button onclick="deleteMeasurement(${m.i})" style="background:#400;color:#f66;border:none;padding:4px 8px;border-radius:4px;cursor:pointer">Del</button></td>`;
+      tb.appendChild(tr);
+    });
+  });
+}
+
+function deleteColor(i){
+  api('/api/colors/delete?id='+i,{method:'POST'}).then(()=>setTimeout(loadColors,500));
+}
+function deleteMeasurement(i){
+  api('/api/measurements/delete?id='+i,{method:'POST'}).then(()=>setTimeout(loadMeasurements,500));
+}
+
+function saveWifi(){
+  const ssid=document.getElementById('wifiSsid').value;
+  const pass=document.getElementById('wifiPass').value;
+  api('/api/wifi?ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(pass),{method:'POST'})
+    .then(d=>showMsg(d.msg||'Saved','ok'))
+    .catch(()=>showMsg('Error','err'));
+}
+
+function changePin(){
+  const p=document.getElementById('newPin').value;
+  api('/api/pin?newPin='+encodeURIComponent(p),{method:'POST'})
+    .then(()=>showMsg('PIN changed','ok'))
+    .catch(()=>showMsg('Error','err'));
+}
+
+function showMsg(text,cls){
+  const el=document.getElementById('settingsMsg');
+  el.innerHTML=`<div class="msg ${cls}">${text}</div>`;
+  setTimeout(()=>el.innerHTML='',3000);
+}
+</script>
+</body>
+</html>

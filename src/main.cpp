@@ -5,6 +5,7 @@
 // Uses FreeRTOS tasks for:
 //   - UI rendering & event processing (main task)
 //   - Input polling (high-priority task for long-press)
+//   - Connectivity (WiFi/BLE, lowest priority)
 //
 // The encoder rotation is interrupt-driven (ISR).
 // Button press uses ISR + periodic polling for long-press.
@@ -13,6 +14,7 @@
 
 #include "app_controller.h"
 #include "config.h"
+#include "connectivity_manager.h"
 #include <Arduino.h>
 
 // ── FreeRTOS Task: Application Main Loop ────────────────────
@@ -31,13 +33,30 @@ void taskInput(void *param) {
   }
 }
 
+// ── FreeRTOS Task: Connectivity ─────────────────────────────
+// Handles WiFi/BLE communication at low priority.
+void taskConnectivity(void *param) {
+  (void)param;
+  // Small delay to let UI initialize first
+  vTaskDelay(pdMS_TO_TICKS(1000));
+
+  ConnectivityManager::instance().init();
+  Serial.printf("[Conn] Free Heap after connectivity init: %d bytes\n",
+                ESP.getFreeHeap());
+
+  while (true) {
+    ConnectivityManager::instance().update();
+    vTaskDelay(pdMS_TO_TICKS(50)); // 20 Hz update rate
+  }
+}
+
 // ── Arduino Setup ───────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
   delay(100); // Brief delay for serial monitor connection
 
   Serial.println("================================");
-  Serial.println("ESP32-C6 Color Picker v1.0.0");
+  Serial.println("ESP32-C6 Color Picker v2.0.0");
   Serial.println("================================");
   Serial.printf("CPU Freq: %d MHz\n", getCpuFrequencyMhz());
   Serial.printf("Free Heap: %d bytes\n", ESP.getFreeHeap());
@@ -47,7 +66,7 @@ void setup() {
   AppController::instance().init();
 
   // Create FreeRTOS tasks
-  // NOTE: ESP32-C6 is single-core RISC-V, so both tasks
+  // NOTE: ESP32-C6 is single-core RISC-V, so all tasks
   // run on core 0 with preemptive scheduling.
   xTaskCreatePinnedToCore(taskApp, "app", Config::System::TASK_STACK_UI,
                           nullptr, Config::System::TASK_PRIORITY_UI, nullptr,
@@ -56,6 +75,11 @@ void setup() {
   xTaskCreatePinnedToCore(taskInput, "input", Config::System::TASK_STACK_INPUT,
                           nullptr, Config::System::TASK_PRIORITY_INPUT, nullptr,
                           Config::System::CORE_OTHER);
+
+  xTaskCreatePinnedToCore(
+      taskConnectivity, "conn", Config::System::TASK_STACK_CONNECTIVITY,
+      nullptr, Config::System::TASK_PRIORITY_CONNECTIVITY, nullptr,
+      Config::System::CORE_OTHER);
 
   Serial.println("[Main] Tasks created, scheduler running");
   Serial.printf("[Main] Free Heap after init: %d bytes\n", ESP.getFreeHeap());

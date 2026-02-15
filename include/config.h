@@ -119,14 +119,48 @@ constexpr const char *DATA_FILE = "/measurements.csv";
 constexpr int MAX_SAVED_MEASUREMENTS = 500;
 } // namespace Measure
 
+// ── Connectivity (WiFi + BLE) ───────────────────────────────
+namespace Connectivity {
+// WiFi AP defaults
+constexpr const char *AP_SSID = "ESPC6-ColorPicker";
+constexpr const char *AP_PASSWORD = "12345678";
+constexpr const char *MDNS_HOSTNAME = "espc6";
+
+// Web server
+constexpr uint16_t HTTP_PORT = 80;
+constexpr int WS_MAX_CLIENTS = 3;
+constexpr uint32_t WS_INTERVAL_MS = 300; // Live stream push interval
+
+// Authentication
+constexpr const char *DEFAULT_PIN = "1234";
+
+// BLE
+constexpr const char *BLE_DEVICE_NAME = "ESPC6-Color";
+// Custom BLE service UUID
+constexpr const char *BLE_SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb";
+constexpr const char *BLE_CHAR_LIVE_UUID =
+    "0000ff01-0000-1000-8000-00805f9b34fb";
+constexpr const char *BLE_CHAR_SAVED_UUID =
+    "0000ff02-0000-1000-8000-00805f9b34fb";
+constexpr const char *BLE_CHAR_CONTROL_UUID =
+    "0000ff03-0000-1000-8000-00805f9b34fb";
+constexpr const char *BLE_CHAR_STATUS_UUID =
+    "0000ff04-0000-1000-8000-00805f9b34fb";
+
+// Config file on SD
+constexpr const char *CONFIG_FILE = "/connectivity.json";
+} // namespace Connectivity
+
 // ── System ──────────────────────────────────────────────────
 namespace System {
 constexpr uint32_t TASK_STACK_UI = 8192;
 constexpr uint32_t TASK_STACK_SENSOR = 4096;
 constexpr uint32_t TASK_STACK_INPUT = 4096;
+constexpr uint32_t TASK_STACK_CONNECTIVITY = 8192;
 constexpr int TASK_PRIORITY_UI = 2;
 constexpr int TASK_PRIORITY_SENSOR = 3;
 constexpr int TASK_PRIORITY_INPUT = 4;
+constexpr int TASK_PRIORITY_CONNECTIVITY = 1;
 constexpr int CORE_UI = 0;
 constexpr int CORE_OTHER = 0; // ESP32-C6 is single-core RISC-V
 } // namespace System

@@ -12,6 +12,7 @@
 // ============================================================
 
 #include "config.h"
+#include "connectivity_manager.h"
 #include "display_manager.h"
 #include "events.h"
 #include "input_handler.h"
@@ -86,6 +87,11 @@ public:
         processEvent(evt);
       }
 
+      // Push live data to connectivity manager for broadcasting
+      if (currentMeasurement_.valid) {
+        ConnectivityManager::instance().setLiveData(currentMeasurement_);
+      }
+
       // Periodic screen refresh for animations
       if (needsRefresh_ || (millis() - lastRefresh_ > 100)) {
         renderCurrentScreen();
@@ -156,7 +162,73 @@ private:
       break;
     }
 
+    // Handle remote events regardless of current state
+    handleRemoteEvents(evt);
+
     needsRefresh_ = true;
+  }
+
+  // ── Remote Event Handler ──────────────────────────────────
+  void handleRemoteEvents(const Event &evt) {
+    switch (evt.type) {
+    case EventType::REMOTE_MEASURE: {
+      auto &sensor = SensorManager::instance();
+      SpectralData data;
+      if (sensor.measure(data)) {
+        currentMeasurement_ = data;
+        if (StorageManager::instance().saveColor(data)) {
+          Serial.println("[Remote] Color measured and saved");
+        }
+      }
+    } break;
+    case EventType::REMOTE_SET_GAIN: {
+      auto &sensor = SensorManager::instance();
+      sensor.setGainIndex(evt.data);
+    } break;
+    case EventType::REMOTE_CALIBRATE: {
+      auto &sensor = SensorManager::instance();
+      bool ok = false;
+      switch (evt.data) {
+      case 0:
+        ok = sensor.captureDarkReference();
+        break;
+      case 1:
+        ok = sensor.captureGrayReference();
+        break;
+      case 2:
+        ok = sensor.captureWhiteReference();
+        break;
+      }
+      if (ok) {
+        StorageManager::instance().saveCalibration(sensor.getCalibration());
+        Serial.printf("[Remote] Calibration step %d complete\n", evt.data);
+      }
+    } break;
+    case EventType::REMOTE_SET_ROTATION: {
+      auto &disp = DisplayManager::instance();
+      screenRotation_ = evt.data % 4;
+      disp.setRotation(screenRotation_);
+    } break;
+    case EventType::REMOTE_DELETE_COLOR: {
+      StorageManager::instance().deleteColor(evt.data);
+      // Reload if currently viewing colors list
+      if (stateMachine_.current() == AppState::SAVED_COLORS_LIST) {
+        StorageManager::instance().loadColors(savedColors_);
+        colorListIndex_ = 0;
+        colorListScroll_ = 0;
+      }
+    } break;
+    case EventType::REMOTE_DELETE_MEASUREMENT: {
+      StorageManager::instance().deleteMeasurement(evt.data);
+      if (stateMachine_.current() == AppState::MEASUREMENTS_LIST) {
+        StorageManager::instance().loadMeasurements(savedMeasurements_);
+        measureListIndex_ = 0;
+        measureListScroll_ = 0;
+      }
+    } break;
+    default:
+      break;
+    }
   }
 
   // ── Main Menu Handler ───────────────────────────────────
@@ -550,20 +622,24 @@ private:
   }
 
   // ── Settings Menu Handler ──────────────────────────────
-  // Items: 0 = Color Calibration CG-3, 1 = Sensor Gain, 2 = Screen orientation
+  // Items: 0 = Calibration, 1 = Gain, 2 = Orientation, 3 = WiFi, 4 = BLE
+  static constexpr int SETTINGS_ITEM_COUNT = 5;
+
   void handleSettingsMenu(const Event &evt) {
     auto &sensor = SensorManager::instance();
+    auto &conn = ConnectivityManager::instance();
     switch (evt.type) {
     case EventType::ENCODER_CW:
-      settingsMenuIndex_ = (settingsMenuIndex_ + 1) % 3;
+      settingsMenuIndex_ = (settingsMenuIndex_ + 1) % SETTINGS_ITEM_COUNT;
       break;
     case EventType::ENCODER_CCW:
-      settingsMenuIndex_ = (settingsMenuIndex_ + 2) % 3;
+      settingsMenuIndex_ =
+          (settingsMenuIndex_ + SETTINGS_ITEM_COUNT - 1) % SETTINGS_ITEM_COUNT;
       break;
     case EventType::BUTTON_PRESS:
       switch (settingsMenuIndex_) {
       case 0:
-        // Start unified calibration wizard (Dark → Gray → White)
+        // Start unified calibration wizard (Dark -> Gray -> White)
         stateMachine_.transitionTo(AppState::CALIB_DARK);
         break;
       case 1:
@@ -572,12 +648,22 @@ private:
         needsRefresh_ = true;
         break;
       case 2:
-        // Cycle screen orientation (0→1→2→3→0)
+        // Cycle screen orientation (0->1->2->3->0)
         {
           auto &disp = DisplayManager::instance();
           screenRotation_ = (screenRotation_ + 1) % 4;
           disp.setRotation(screenRotation_);
         }
+        needsRefresh_ = true;
+        break;
+      case 3:
+        // Toggle WiFi (requires restart to apply)
+        conn.setWiFiEnabled(!conn.isWiFiEnabled());
+        needsRefresh_ = true;
+        break;
+      case 4:
+        // Toggle BLE (requires restart to apply)
+        conn.setBLEEnabled(!conn.isBLEEnabled());
         needsRefresh_ = true;
         break;
       }
@@ -674,7 +760,7 @@ private:
 
     switch (stateMachine_.current()) {
     case AppState::MAIN_MENU:
-      Screens::drawMainMenu(disp, menuIndex_);
+      Screens::drawMainMenu(disp, menuIndex_, getConnStatus());
       break;
 
     case AppState::COLOR_PICKER_MENU:
@@ -724,7 +810,7 @@ private:
     case AppState::SETTINGS_MENU:
       Screens::drawSettingsMenu(disp, sensor.getCalibration(),
                                 settingsMenuIndex_, sensor.getGainLabel(),
-                                screenRotation_);
+                                screenRotation_, getConnStatus());
       break;
 
     case AppState::CALIB_DARK:
@@ -756,6 +842,19 @@ private:
     default:
       break;
     }
+  }
+
+  // ── Connectivity Status Helper ──────────────────────────
+  ConnStatus getConnStatus() const {
+    auto &conn = ConnectivityManager::instance();
+    ConnStatus cs;
+    cs.wifiEnabled = conn.isWiFiEnabled();
+    cs.wifiConnected = conn.isWiFiConnected();
+    cs.apMode = conn.isAPMode();
+    cs.bleEnabled = conn.isBLEEnabled();
+    cs.bleConnected = conn.isBLEConnected();
+    strncpy(cs.ip, conn.getIPAddress().c_str(), sizeof(cs.ip) - 1);
+    return cs;
   }
 
   // ── State ───────────────────────────────────────────────

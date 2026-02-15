@@ -30,6 +30,20 @@ enum class EventType : uint8_t {
   COLOR_DELETED,
   SAVE_ERROR,
 
+  // Remote control events (from WiFi/BLE)
+  REMOTE_MEASURE,       // Trigger measurement from web/BLE
+  REMOTE_SET_GAIN,      // Change sensor gain (data = gain index)
+  REMOTE_CALIBRATE,     // Start calibration step (data = 0:dark, 1:gray, 2:white)
+  REMOTE_SET_ROTATION,  // Change screen rotation (data = 0-3)
+  REMOTE_DELETE_COLOR,  // Delete color (data = index)
+  REMOTE_DELETE_MEASUREMENT, // Delete measurement (data = index)
+
+  // Connectivity events
+  WIFI_CONNECTED,
+  WIFI_DISCONNECTED,
+  BLE_CLIENT_CONNECTED,
+  BLE_CLIENT_DISCONNECTED,
+
   // UI events (internal)
   SCREEN_REFRESH,
   NAVIGATE_BACK,

@@ -13,6 +13,16 @@
 #include "storage_manager.h"
 #include <vector>
 
+// Connectivity status struct to avoid circular include with ConnectivityManager
+struct ConnStatus {
+  bool wifiEnabled = false;
+  bool wifiConnected = false;
+  bool apMode = false;
+  bool bleEnabled = false;
+  bool bleConnected = false;
+  char ip[20] = "";
+};
+
 namespace Screens {
 
 // ── Boot / Splash Screen ────────────────────────────────────
@@ -44,18 +54,40 @@ inline void drawBoot(DisplayManager &disp, float progress, const char *status) {
 }
 
 // ── Main Menu (Carousel Style) ──────────────────────────────
-inline void drawMainMenu(DisplayManager &disp, int selectedIndex) {
+inline void drawMainMenu(DisplayManager &disp, int selectedIndex,
+                         const ConnStatus &cs) {
   disp.clear();
 
   auto &c = disp.canvas();
 
   const char *items[] = {"Color Picker", "Calliper", "Settings"};
 
+  // Status bar at top
+  c.setTextSize(1);
+  if (cs.wifiEnabled) {
+    if (cs.apMode) {
+      c.setTextColor(Config::UI::COLOR_ACCENT);
+      c.drawString("AP", 4, 2);
+    } else if (cs.wifiConnected) {
+      c.setTextColor(Config::UI::COLOR_SUCCESS);
+      c.drawString("WiFi", 4, 2);
+    } else {
+      c.setTextColor(0x7BEF);
+      c.drawString("WiFi", 4, 2);
+    }
+  }
+  if (cs.bleEnabled) {
+    uint16_t bleColor =
+        cs.bleConnected ? Config::UI::COLOR_SUCCESS : 0x7BEF;
+    c.setTextColor(bleColor);
+    c.drawString("BLE", 40, 2);
+  }
+
   // Card dimensions
   const int cardX = 24;
-  const int cardY = 8;
+  const int cardY = 14;
   const int cardW = 272;
-  const int cardH = 128;
+  const int cardH = 120;
   const int cardR = 14;
 
   // Rounded rectangle card outline (thin gray border)
@@ -67,14 +99,21 @@ inline void drawMainMenu(DisplayManager &disp, int selectedIndex) {
   const char *label = items[selectedIndex];
   int textW = c.textWidth(label);
   int textX = (Config::LCD::WIDTH - textW) / 2;
-  int textY = 114;
+  int textY = 110;
   c.drawString(label, textX, textY);
 
   // Left/right chevrons at same level as text
   c.setTextSize(2);
   c.setTextColor(0x7BEF);
-  c.drawString("<", 30, 120);
-  c.drawString(">", 282, 120);
+  c.drawString("<", 30, 116);
+  c.drawString(">", 282, 116);
+
+  // IP address at bottom
+  if (cs.wifiConnected) {
+    c.setTextSize(1);
+    c.setTextColor(0x7BEF);
+    c.drawString(cs.ip, 4, Config::LCD::HEIGHT - 12);
+  }
 
   disp.flush();
 }
@@ -343,7 +382,8 @@ inline void drawSavedColorDetail(DisplayManager &disp, const SavedColor &color,
 // ── Settings Menu ───────────────────────────────────────────
 inline void drawSettingsMenu(DisplayManager &disp,
                              const CalibrationData &cal, int selectedIndex,
-                             const char *gainLabel, uint8_t rotation) {
+                             const char *gainLabel, uint8_t rotation,
+                             const ConnStatus &cs) {
   disp.clear();
 
   auto &c = disp.canvas();
@@ -367,10 +407,36 @@ inline void drawSettingsMenu(DisplayManager &disp,
   snprintf(orientItem, sizeof(orientItem), "Orientation: %s",
            orientLabels[rotation % 4]);
 
-  const char *items[] = {calibItem, gainItem, orientItem};
+  char wifiItem[48];
+  if (cs.wifiEnabled) {
+    if (cs.apMode) {
+      snprintf(wifiItem, sizeof(wifiItem), "WiFi: AP (%s)", cs.ip);
+    } else if (cs.wifiConnected) {
+      snprintf(wifiItem, sizeof(wifiItem), "WiFi: %s", cs.ip);
+    } else {
+      snprintf(wifiItem, sizeof(wifiItem), "WiFi: ON (disconnected)");
+    }
+  } else {
+    snprintf(wifiItem, sizeof(wifiItem), "WiFi: OFF");
+  }
 
-  for (int i = 0; i < 3; i++) {
-    disp.drawMenuItem(i, items[i], i == selectedIndex, 0);
+  char bleItem[32];
+  snprintf(bleItem, sizeof(bleItem), "BLE: %s%s",
+           cs.bleEnabled ? "ON" : "OFF",
+           cs.bleConnected ? " (connected)" : "");
+
+  const char *items[] = {calibItem, gainItem, orientItem, wifiItem, bleItem};
+  constexpr int itemCount = 5;
+
+  // Calculate scroll offset for 5 items (max ~5 visible on 172px)
+  int startIdx = 0;
+  int visibleItems = 5;
+  if (selectedIndex >= visibleItems) {
+    startIdx = selectedIndex - visibleItems + 1;
+  }
+
+  for (int i = startIdx; i < itemCount && (i - startIdx) < visibleItems; i++) {
+    disp.drawMenuItem(i - startIdx, items[i], i == selectedIndex, 0);
   }
 
   disp.flush();
